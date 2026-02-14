@@ -4,15 +4,16 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Carbon\Carbon;
 
 class Pegawai extends Model
 {
     use HasFactory;
 
     protected $table = 'pegawai';
-    
+
     // PENTING: Matikan timestamps karena tabel kamu tidak punya kolom created_at
-    public $timestamps = false; 
+    public $timestamps = false;
 
     protected $fillable = [
         'no_pegawai',
@@ -33,4 +34,6 @@ class Pegawai extends Model
         // Relasi ke tabel bagian menggunakan kolom 'nomor'
         return $this->belongsTo(Bagian::class, 'bagian_id', 'nomor');
     }
+
+
 }

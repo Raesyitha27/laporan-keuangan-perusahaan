@@ -12,7 +12,7 @@ class GajiController extends Controller
 {
     public function index(Request $request)
     {
-        $filterBulan = $request->get('bulan'); 
+        $filterBulan = $request->get('bulan');
         $query = Gaji::with('pegawai');
 
         if ($filterBulan) {
@@ -32,10 +32,10 @@ class GajiController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'pegawai_id'  => 'required|exists:pegawai,id',
-            'gaji_pokok'  => 'required|numeric',
-            'tunjangan'   => 'required|numeric',
-            'pajak'       => 'required|numeric',
+            'pegawai_id' => 'required|exists:pegawai,id',
+            'gaji_pokok' => 'required|numeric',
+            'tunjangan' => 'required|numeric',
+            'pajak' => 'required|numeric',
             'bulan_tahun' => 'required|string|max:7',
         ]);
 
@@ -44,8 +44,8 @@ class GajiController extends Controller
             ['pegawai_id' => $request->pegawai_id, 'bulan_tahun' => $request->bulan_tahun],
             [
                 'gaji_pokok' => $request->gaji_pokok,
-                'tunjangan'  => $request->tunjangan,
-                'pajak'      => $request->pajak,
+                'tunjangan' => $request->tunjangan,
+                'pajak' => $request->pajak,
             ]
         );
 
@@ -57,13 +57,13 @@ class GajiController extends Controller
         DB::table('transaksi')->updateOrInsert(
             ['no_transaksi' => $noTrans], // Jika no_transaksi ini sudah ada, maka UPDATE
             [
-                'no_rekening'      => '501', 
-                'tanggal'          => now(),
-                'id_debet_kredit'  => 2, 
-                'debet'            => 0,
-                'kredit'           => ($request->gaji_pokok + $request->tunjangan) - $request->pajak,
-                'created_at'       => now(),
-                'updated_at'       => now(),
+                'no_rekening' => '501',
+                'tanggal' => now(),
+                'keterangan' => now(),
+                'debet' => 0,
+                'kredit' => ($request->gaji_pokok + $request->tunjangan) - $request->pajak,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]
         );
 
@@ -74,7 +74,7 @@ class GajiController extends Controller
     {
         $gaji = Gaji::with('pegawai')->findOrFail($id);
         $pdf = Pdf::loadView('gaji.slip', compact('gaji'));
-        return $pdf->download('Slip-Gaji-'.$gaji->pegawai->nama.'-'.$gaji->bulan_tahun.'.pdf');
+        return $pdf->download('Slip-Gaji-' . $gaji->pegawai->nama . '-' . $gaji->bulan_tahun . '.pdf');
     }
 
     public function edit($id)
@@ -115,7 +115,7 @@ class GajiController extends Controller
 
         $allGaji = $query->get();
         $pdf = Pdf::loadView('gaji.pdf', compact('allGaji', 'bulan'));
-        
-        return $pdf->download('laporan-gaji-'.($bulan ?? 'semua').'.pdf');
+
+        return $pdf->download('laporan-gaji-' . ($bulan ?? 'semua') . '.pdf');
     }
 }
