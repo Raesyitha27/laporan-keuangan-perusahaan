@@ -2,38 +2,33 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Gaji extends Model
 {
-    protected $table = 'gaji';
-    protected $primaryKey = 'no_pegawai'; // Sesuai dengan database kamu
-    public $incrementing = false;
-    protected $keyType = 'string';
-    public $timestamps = false;
+    use HasFactory;
 
-    // Bagian ini HARUS sama persis dengan nama kolom di database SQL
+    protected $table = 'gaji';
+
+    // Sesuaikan Primary Key. Di database kamu, kolomnya adalah 'id' (auto_increment)
+    protected $primaryKey = 'id';
+    public $incrementing = true;
+    protected $keyType = 'int';
+
     protected $fillable = [
-        'no_pegawai', 
+        'pegawai_id',  // Ganti dari no_pegawai ke pegawai_id
         'gaji_pokok', 
-        'faktor_perubah' // Ubah dari 'tunjangan' menjadi 'faktor_perubah'
+        'tunjangan', 
+        'pajak', 
+        'bulan_tahun'
     ];
 
-    /**
-     * Relasi ke model Pegawai
-     * Sesuai flowchart: Menghubungkan data transaksi dengan identitas pegawai
-     */
-    public function pegawai() {
-        return $this->belongsTo(Pegawai::class, 'no_pegawai', 'no_pegawai');
-    }
-
-    /**
-     * Fitur Tambahan (Accessor): Menghitung Total Otomatis
-     * Jadi kamu tidak perlu simpan kolom 'total' di database, 
-     * panggil saja $gaji->total_pendapatan di View.
-     */
-    public function getTotalPendapatanAttribute()
+    // Relasi ke Pegawai (Inilah kunci agar Nama muncul)
+    public function pegawai()
     {
-        return $this->gaji_pokok + $this->faktor_perubah;
+        // Parameter 2: Foreign Key di tabel gaji (pegawai_id)
+        // Parameter 3: Primary Key di tabel pegawai (id)
+        return $this->belongsTo(Pegawai::class, 'pegawai_id', 'id');
     }
 }
