@@ -3,14 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\Pegawai;
+use App\Models\Pendidikan;
+use App\Models\Bagian;
 use Illuminate\Http\Request;
-// Tidak perlu 'use App\Http\Controllers\Controller' jika berada di folder yang sama
 
 class PegawaiController extends Controller
 {
     public function index()
     {
-        $pegawai = Pegawai::all();
+        // Menggunakan orderBy('id') sebagai pengganti latest()
+        $pegawai = Pegawai::with(['pendidikan', 'bagian'])->orderBy('id', 'desc')->get();
         return view('pegawai.index', compact('pegawai'));
     }
 
@@ -20,21 +22,27 @@ class PegawaiController extends Controller
     }
 
     public function store(Request $request)
-{
-    // 1. Validasi semua kolom yang ada di fillable Model
-    $request->validate([
-        'no_pegawai' => 'required|unique:pegawai,no_pegawai',
-        'nama'       => 'required',
-        'jabatan'    => 'required',
-        'id'         => 'required', // Foreign key Pendidikan
-        'nomor'      => 'required', // Foreign key Bagian
-    ]);
+    {
+        $request->validate([
+            'no_pegawai'    => 'required|unique:pegawai,no_pegawai',
+            'nama'          => 'required|string|max:255',
+            'jabatan'       => 'required|string',
+            'tanggal_masuk' => 'required|date',
+            'pendidikan_id' => 'required|exists:pendidikan,id',
+            'bagian_id'     => 'required|exists:bagian,nomor', 
+        ]);
 
-    // 2. Simpan data ke Database SQL
-    // Karena sudah divalidasi, kita bisa gunakan create($request->all())
-    Pegawai::create($request->all());
+        try {
+            Pegawai::create($request->all());
+            return redirect()->route('pegawai.index')->with('success', 'Data Pegawai Berhasil Disimpan!');
+        } catch (\Exception $e) {
+            return back()->withInput()->with('error', 'Gagal Simpan: ' . $e->getMessage());
+        }
+    }
 
-    // 3. Redirect ke dashboard agar angka "Total Pegawai" langsung terupdate
-    return redirect('/dashboard')->with('success', 'Data Pegawai Berhasil Disimpan ke SQL!');
-}
+    public function destroy($id)
+    {
+        Pegawai::findOrFail($id)->delete();
+        return redirect()->route('pegawai.index')->with('success', 'Data Berhasil Dihapus!');
+    }
 }

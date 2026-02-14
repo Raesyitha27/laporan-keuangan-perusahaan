@@ -6,42 +6,29 @@ use App\Models\Gaji;
 use App\Models\Pegawai;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\DB;
 
 class GajiController extends Controller
 {
-    /**
-     * Menampilkan daftar semua gaji.
-     */
     public function index(Request $request)
-{
-    // Ambil input filter bulan dari request (jika ada)
-    $filterBulan = $request->get('bulan'); 
+    {
+        $filterBulan = $request->get('bulan'); 
+        $query = Gaji::with('pegawai');
 
-    // Query dasar: Ambil gaji beserta data pegawainya
-    $query = Gaji::with('pegawai');
+        if ($filterBulan) {
+            $query->where('bulan_tahun', $filterBulan);
+        }
 
-    // Jika user memilih bulan tertentu, saring datanya
-    if ($filterBulan) {
-        $query->where('bulan_tahun', $filterBulan);
+        $allGaji = $query->get();
+        return view('gaji.index', compact('allGaji', 'filterBulan'));
     }
 
-    $allGaji = $query->get();
-
-    return view('gaji.index', compact('allGaji', 'filterBulan'));
-}
-
-    /**
-     * Menampilkan form tambah gaji.
-     */
     public function create()
     {
         $pegawai = Pegawai::all();
         return view('gaji.create', compact('pegawai'));
     }
 
-    /**
-     * Menyimpan data baru atau memperbarui data berdasarkan pegawai & bulan.
-     */
     public function store(Request $request)
     {
         $request->validate([
@@ -62,36 +49,34 @@ class GajiController extends Controller
             ]
         );
 
-    // 2. Catat ke Tabel Transaksi (Otomatis)
-    // Kita gunakan DB facade agar lebih cepat atau buat Model Transaksi
-    \DB::table('transaksi')->insert([
-        'no_transaksi'     => 'GJ-' . time() . '-' . $request->pegawai_id,
-        'no_rekening'      => '111', // Contoh: Kode akun beban gaji
-        'tanggal'          => now(),
-        'id_debet_kredit'  => 2, // Misal 2 adalah kode untuk Kredit/Keluar
-        'debet'            => 0,
-        'kredit'           => $gaji->total_diterima, // Total yang dibayarkan
-        'created_at'       => now(),
-        'updated_at'       => now(),
-    ]);
+        // 2. Catat/Update ke Tabel Transaksi secara Otomatis
+        // Kita buat nomor transaksi yang unik: GJ + ID Pegawai + BulanTahun
+        // Contoh: GJ-1-202602
+        $noTrans = 'GJ-' . $request->pegawai_id . '-' . str_replace('-', '', $request->bulan_tahun);
 
-    return redirect()->route('gaji.index')->with('success', 'Gaji berhasil disimpan dan dicatat di transaksi!');
-}
+        DB::table('transaksi')->updateOrInsert(
+            ['no_transaksi' => $noTrans], // Jika no_transaksi ini sudah ada, maka UPDATE
+            [
+                'no_rekening'      => '501', 
+                'tanggal'          => now(),
+                'id_debet_kredit'  => 2, 
+                'debet'            => 0,
+                'kredit'           => ($request->gaji_pokok + $request->tunjangan) - $request->pajak,
+                'created_at'       => now(),
+                'updated_at'       => now(),
+            ]
+        );
 
-    // Fungsi Baru: Download Slip Gaji Per Orang
+        return redirect()->route('gaji.index')->with('success', 'Gaji berhasil disimpan dan sinkron dengan transaksi!');
+    }
+
     public function downloadSlip($id)
     {
         $gaji = Gaji::with('pegawai')->findOrFail($id);
-        
-        // Gunakan view yang berbeda khusus untuk slip (bukan laporan tabel)
         $pdf = Pdf::loadView('gaji.slip', compact('gaji'));
-        
         return $pdf->download('Slip-Gaji-'.$gaji->pegawai->nama.'-'.$gaji->bulan_tahun.'.pdf');
     }
 
-    /**
-     * Menampilkan form edit untuk data gaji spesifik.
-     */
     public function edit($id)
     {
         $gaji = Gaji::findOrFail($id);
@@ -99,51 +84,38 @@ class GajiController extends Controller
         return view('gaji.edit', compact('gaji', 'pegawai'));
     }
 
-    /**
-     * Memperbarui data gaji (jika kamu menggunakan route resource 'update').
-     */
     public function update(Request $request, $id)
     {
-        $request->validate([
-            'pegawai_id'  => 'required|exists:pegawai,id',
-            'gaji_pokok'  => 'required|numeric',
-            'tunjangan'   => 'required|numeric',
-            'pajak'       => 'required|numeric',
-            'bulan_tahun' => 'required|string|max:7',
-        ]);
-
-        $gaji = Gaji::findOrFail($id);
-        $gaji->update($request->all());
-
-        return redirect()->route('gaji.index')->with('success', 'Data gaji berhasil diperbarui!');
+        // Untuk konsistensi, kita arahkan fungsi update ke store 
+        // karena store kita sudah pakai updateOrCreate.
+        return $this->store($request);
     }
 
-    /**
-     * Menghapus data gaji.
-     */
     public function destroy($id)
     {
         $gaji = Gaji::findOrFail($id);
+
+        // Hapus juga transaksi terkait agar saldo kembali benar
+        $noTrans = 'GJ-' . $gaji->pegawai_id . '-' . str_replace('-', '', $gaji->bulan_tahun);
+        DB::table('transaksi')->where('no_transaksi', $noTrans)->delete();
+
         $gaji->delete();
 
-        return redirect()->route('gaji.index')->with('success', 'Data gaji berhasil dihapus!');
+        return redirect()->route('gaji.index')->with('success', 'Data gaji dan transaksi terkait berhasil dihapus!');
     }
 
-    /**
-     * Export data gaji ke file PDF.
-     */
-   public function exportPdf(Request $request)
-{
-    $bulan = $request->get('bulan');
-    $query = Gaji::with('pegawai');
+    public function exportPdf(Request $request)
+    {
+        $bulan = $request->get('bulan');
+        $query = Gaji::with('pegawai');
 
-    if ($bulan) {
-        $query->where('bulan_tahun', $bulan);
+        if ($bulan) {
+            $query->where('bulan_tahun', $bulan);
+        }
+
+        $allGaji = $query->get();
+        $pdf = Pdf::loadView('gaji.pdf', compact('allGaji', 'bulan'));
+        
+        return $pdf->download('laporan-gaji-'.($bulan ?? 'semua').'.pdf');
     }
-
-    $allGaji = $query->get();
-    $pdf = Pdf::loadView('gaji.pdf', compact('allGaji', 'bulan'));
-    
-    return $pdf->download('laporan-gaji-'.$bulan.'.pdf');
-}
 }

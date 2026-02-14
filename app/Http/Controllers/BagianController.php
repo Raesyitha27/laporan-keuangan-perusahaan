@@ -2,58 +2,42 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Bagian; // Memanggil Model Bagian yang benar
+use App\Models\Bagian;
 use Illuminate\Http\Request;
 
 class BagianController extends Controller
 {
-    /**
-     * Menampilkan daftar semua bagian
-     */
     public function index()
     {
-        // Mengambil semua data bagian dari database SQL
         $bagian = Bagian::all(); 
-        
-        // Mengirim data ke view index di folder resources/views/bagian/
         return view('bagian.index', compact('bagian'));
     }
 
-    /**
-     * Menampilkan form untuk menambah bagian baru
-     */
     public function create()
     {
         return view('bagian.create');
     }
 
-    /**
-     * Menyimpan data bagian baru ke database SQL
-     */
     public function store(Request $request)
     {
-        // Validasi input: 'nomor' harus diisi dan unik di tabel bagian
+        // 1. Validasi: Sesuaikan dengan input di form kamu
         $request->validate([
-            'nomor' => 'required|unique:bagian,nomor',
-            'nama_bagian' => 'required',
+            'nomor'  => 'required|unique:bagian,nomor',
+            'bagian' => 'required', // Diubah dari 'nama_bagian' agar sesuai DB
         ]);
 
-        // Simpan ke database menggunakan metode mass assignment
+        // 2. Simpan: Sesuaikan key dengan nama kolom di tabel MySQL
         Bagian::create([
-            'nomor' => $request->nomor,
-            'nama_bagian' => $request->nama_bagian,
+            'nomor'  => $request->nomor,
+            'bagian' => $request->bagian, // Diubah dari 'nama_bagian'
         ]);
 
-        // Setelah simpan, balik ke halaman daftar dengan pesan sukses
         return redirect()->route('bagian.index')->with('success', 'Data Bagian berhasil ditambahkan!');
     }
 
-    /**
-     * Menghapus data bagian (Opsional, untuk pelengkap CRUD)
-     */
-    public function destroy($id)
+    public function destroy($nomor) // Gunakan $nomor karena PK kamu adalah 'nomor'
     {
-        $bagian = Bagian::findOrFail($id);
+        $bagian = Bagian::findOrFail($nomor);
         $bagian->delete();
 
         return redirect()->route('bagian.index')->with('success', 'Data Bagian berhasil dihapus!');
